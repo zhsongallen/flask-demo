@@ -3,14 +3,8 @@ from flask import Flask, render_template, request, redirect, jsonify, abort
 
 app = Flask(__name__)
 
-ENV = 'dev'
-
-if ENV == 'dev':
-    app.debug = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:test123@localhost/lexus'
-else:
-    app.debug = False
-    app.config['SQLALCHEMY_DATABASE_URI'] = ''
+app.debug = True
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:test123@db:5432/lexus'
 
 db = SQLAlchemy(app)
 
@@ -39,6 +33,11 @@ class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), unique = True)
     feedbacks = db.relationship('Feedback', backref = 'customer', lazy = True)
+
+def create_db():
+    db.drop_all()
+    db.create_all()
+    db.session.commit()
 
 # Get feedback for a particular dealer and customer
 @app.route('/getFeedback', methods=['GET'])
@@ -145,8 +144,10 @@ def addCustomer():
         "name":nameofCustomer
     })
 
-if __name__ == '__main__':
-    app.run()
+create_db()
+app.run(
+host='0.0.0.0',
+port=5000)
 
 '''
     /addDealer: [POST]
@@ -172,5 +173,11 @@ if __name__ == '__main__':
         "dealer": "Dealer1",
         "rating": 10,
         "comments": "Great dealer!"
+    }
+
+    /getFeedback: [GET]
+    {
+        "customer": "Customer1",
+        "dealer": "Dealer1"
     }
 '''

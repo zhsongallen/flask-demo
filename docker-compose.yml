@@ -1,0 +1,28 @@
+version: '3.7'
+
+services:
+     
+  api:
+    build: .
+    depends_on:
+      - db
+    environment:
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://postgres:test123@db/lexus
+    networks:
+      - default
+    ports:
+      - 5000:5000
+
+    restart: always
+
+  db:
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test123
+      POSTGRES_DB: lexus
+    image: postgres:latest
+    networks:
+      - default
+    ports:
+      - 5431:5432
+    restart: always
