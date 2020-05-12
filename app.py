@@ -25,7 +25,7 @@ class Feedback(db.Model):
     rating = db.Column(db.Integer)
     comments = db.Column(db.Text())
     dealer_id = db.Column(db.Integer, db.ForeignKey('dealer.id'))
-    customer_id = db.relationship('Customer', backref = 'feedback', lazy = True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'))
 
 class Dealer(db.Model):
     __tablename__ = 'dealer'
@@ -35,33 +35,32 @@ class Dealer(db.Model):
     averageRating = db.Column(db.Integer)
     numofRatings = db.Column(db.Integer)
     feedbacks = db.relationship('Feedback', backref = 'dealer', cascade='all, delete-orphan', lazy=True)
-    orders = db.relationship('Order', backref = 'dealers', lazy=True)
 
 class Customer(db.Model):
     __tablename__ = 'customer'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), unique = True)
-    feedback_id = db.Column(db.Integer, db.ForeignKey('feedback.id'))
-    orders = db.relationship('Order', backref = 'customers', lazy=True)
+    feedbacks = db.relationship('Feedback', backref = 'customer', lazy = True)
 
-class Order(db.Model):
-    __tablename__ = 'order'
-    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), primary_key=True)
-    dealer_id = db.Column(db.Integer, db.ForeignKey('dealer.id'), primary_key=True)
-    price = db.Column(db.Integer)
+# Get feedback for a particular dealer and customer
+@app.route('/getFeedback', methods=['GET'])
+def getFeedback():
+    if not request.json:
+        abort(404)
+    dealer = request.json['dealer']
+    customer_name = request.json['customer'] 
+    feedbackList = Customer.query.filter(Customer.name == customer_name).first().feedbacks
+    DealerID = Dealer.query.filter(Dealer.name == dealer).first().id
+    if (DealerID == None or feedbackList == None):
+        abort(404)
+    for feedback in feedbackList:
+        if (feedback.dealer_id == DealerID):
+            return jsonify({
+                "customer": customer_name,
+                "dealer": dealer,
+                "comments": feedback.comments
+            })
     
-        
-@app.route('/')
-def index():
-    dealers = Dealer.query
-    return render_template('index.html', dealers = dealers)
-
-#========== Not Finished Yet================
-@app.route('/getAllDealers', methods=['GET'])
-def newDealer():
-    dealersList = Dealer.query.all()
-    #Query Object cannot be Jsonified!
-#========== Not Finished Yet================
 
 @app.route('/getDealerByID', methods=['GET'])
 def getDealerbyID():
@@ -116,7 +115,7 @@ def submitFeedback():
     if request.method == 'POST':
         customer_name = request.json['customer']
         dealerName = request.json['dealer']
-        rating = int(request.json['rating'])
+        rating = request.json['rating']
         comments = request.json['comments']
         if customer_name == '' or dealerName == '':
             abort(404)
@@ -128,16 +127,13 @@ def submitFeedback():
         reviewedDealer = db.session.query(Dealer).filter(Dealer.name == dealerName).first()
         reviewedDealer.averageRating = ((reviewedDealer.averageRating * reviewedDealer.numofRatings) + rating) / (reviewedDealer.averageRating + 1)
         reviewedDealer.numofRatings += 1
-        if db.session.query(Feedback).filter(Feedback.customer == customer_name).count() == 0:
-            data = Feedback(customer_name=customerFound.name, dealer_id = reviewedDealer.id , rating = rating, comments = comments, customer_id = customerFound.id)
-            db.session.add(data)
-            db.session.commit()
-            return jsonify({
-                "customer":customerFound.name,
-                "comments":comments 
-            })
-        else:
-            abort(404)
+        data = Feedback(customer_name=customerFound.name, dealer_id = reviewedDealer.id , rating = rating, comments = comments, customer_id = customerFound.id)
+        db.session.add(data)
+        db.session.commit()
+        return jsonify({
+            "customer":customerFound.name,
+            "comments":comments 
+        })
 
 @app.route('/addCustomer', methods=['POST'])
 def addCustomer():
@@ -149,24 +145,6 @@ def addCustomer():
     db.session.commit()
     return jsonify({
         "name":nameofCustomer
-    })
-
-@app.route('/addOrder', methods=['POST'])
-def addOrder():
-    if not request.json or (not "customer_name" in request.json) or (not "dealer_name" in request.json):
-        abort(400)
-    customerFound = db.session.query(Customer).filter(Customer.name == request.json['customer_name']).first()
-    dealerFound = db.session.query(Dealer).filter(Dealer.name == request.json['dealer_name']).first()
-    price = request.json['price']
-    if (customerFound == None or dealerFound == None):
-        abort(400)
-    newOrder = Order(customer_id = customerFound.id, dealer_id = dealerFound.id, price = price)
-    db.session.add(newOrder)
-    db.session.commit()
-    return jsonify({
-        "Customer": customerFound.name,
-        "Dealer": dealerFound.name,
-        "price": price
     })
 
 if __name__ == '__main__':
@@ -184,6 +162,7 @@ if __name__ == '__main__':
         "name": "Customer1"
     }
 
+
     /getDealerByID: [GET]
     {
         "id":1
@@ -196,17 +175,10 @@ if __name__ == '__main__':
 
     /submitFeedback: [POST]
     {
-        "customer": "Allen",
-        "dealer": "Allen Song",
-        "rating": "10",
+        "customer": "Customer1",
+        "dealer": "Dealer1",
+        "rating": 10,
         "comments": "Great dealer!"
-    }
-
-    /addOrder [POST]
-    {
-        "customer_name": "Customer1",
-        "dealer_name": "Dealer1",
-        "price":100
     }
 
 '''
