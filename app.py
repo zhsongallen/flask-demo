@@ -14,9 +14,7 @@ else:
 
 db = SQLAlchemy(app)
 
-# Relationships: Customer <===> Dealers, Many to Many
-# Feedback <====> Dealers, One to Many
-# Customer <==> Feedback, One to One
+# A customer can submit multiple feedbacks to many dealers
 
 class Feedback(db.Model):
     __tablename__ = 'feedback'
@@ -156,23 +154,18 @@ if __name__ == '__main__':
         "name": "Dealer1",
         "country": "China"
     }
-
     /addCustomer: [POST]
     {
         "name": "Customer1"
     }
-
-
     /getDealerByID: [GET]
     {
         "id":1
     }
-
     /deleteDealerByID: [DELETE]
     {
         "id":2
     }
-
     /submitFeedback: [POST]
     {
         "customer": "Customer1",
@@ -180,5 +173,4 @@ if __name__ == '__main__':
         "rating": 10,
         "comments": "Great dealer!"
     }
-
 '''
