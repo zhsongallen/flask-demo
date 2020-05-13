@@ -35,7 +35,6 @@ class Customer(db.Model):
     feedbacks = db.relationship('Feedback', backref = 'customer', lazy = True)
 
 def create_db():
-    db.drop_all()
     db.create_all()
     db.session.commit()
 
