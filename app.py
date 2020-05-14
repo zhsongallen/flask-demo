@@ -44,6 +44,7 @@ class Customer(db.Model):
     feedbacks = db.relationship('Feedback', backref = 'customer', lazy = True)
     orders = db.relationship('Order', backref = 'customer', lazy = True)
 
+#Get orders for a particular customer and dealer
 @app.route('/getOrders', methods = ['GET'])
 def getOrders():
     if not request.json:
@@ -66,6 +67,32 @@ def getOrders():
     for order in ordersMade:
         orderInJson = json.loads(str(order).replace("\'", "\""))
         json_arr.append(orderInJson)
+    return jsonify(json_arr)
+
+#Get all customers for a particular dealer
+@app.route('/getCustomers', methods = ['GET'])
+def getCustomers():
+    if not request.json:
+        abort(404)
+    dealer_id = request.json['dealer_id']
+    dealerFound = Dealer.query.filter(Dealer.id == dealer_id).first()
+    if (dealerFound == None):
+        abort(404)
+    customersSet = []
+    customersString = []
+    ordersFoundByDealer = dealerFound.orders
+    if ordersFoundByDealer != None:
+        for order in ordersFoundByDealer:
+            if not order.customer_id in customersSet:
+                customersString.append({
+                    "customer_id": order.customer_id,
+                    "customer_name": Customer.query(Customer.id == order.customer_id).first().id,
+                })
+                customersSet.append(order.customer_id)
+    json_arr = []
+    for customer in customersString:
+        customerInJson = json.loads(str(customer).replace("\'", "\""))
+        json_arr.append(customerInJson)
     return jsonify(json_arr)
 
 #Add a new order
