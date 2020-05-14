@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from flask import Flask, render_template, request, redirect, jsonify, abort
+from flask import Flask, render_template, request, redirect, jsonify, abort, json
 
 app = Flask(__name__)
 
@@ -8,55 +8,122 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:test123@db:5432/l
 
 db = SQLAlchemy(app)
 
-# A customer can submit multiple feedbacks to many dealers
-
+# A customer can make multiple orders with many dealers, and submit multiple feedbacks to many dealers, but only one for each order made
 class Feedback(db.Model):
     __tablename__ = 'feedback'
     id = db.Column(db.Integer, primary_key=True)
-    customer_name = db.Column(db.String(200), unique=True)
+    customer_name = db.Column(db.String(200))
     rating = db.Column(db.Integer)
     comments = db.Column(db.Text())
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'))
     dealer_id = db.Column(db.Integer, db.ForeignKey('dealer.id'))
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'))
+
+class Order(db.Model):
+    __tablename__ = 'order'
+    id = db.Column(db.Integer, primary_key=True)
+    price = db.Column(db.Integer)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'))
+    dealer_id = db.Column(db.Integer, db.ForeignKey('dealer.id'))
 
 class Dealer(db.Model):
     __tablename__ = 'dealer'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), unique=True)
+    name = db.Column(db.String(200))
     country = db.Column(db.String(200))
     averageRating = db.Column(db.Integer)
     numofRatings = db.Column(db.Integer)
     feedbacks = db.relationship('Feedback', backref = 'dealer', cascade='all, delete-orphan', lazy=True)
+    orders = db.relationship('Order', backref = 'dealer', cascade='all, delete-orphan', lazy=True)
+
 
 class Customer(db.Model):
     __tablename__ = 'customer'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), unique = True)
+    name = db.Column(db.String(200))
     feedbacks = db.relationship('Feedback', backref = 'customer', lazy = True)
+    orders = db.relationship('Order', backref = 'customer', lazy = True)
 
-def create_db():
-    db.create_all()
+@app.route('/getOrders', methods = ['GET'])
+def getOrders():
+    if not request.json:
+        abort(404)
+    dealer_id = request.json['dealer_id']
+    customer_id = request.json['customer_id']
+    dealerFound = Dealer.query.filter(Dealer.id == dealer_id).first()
+    if (dealerFound == None):
+        abort(404)
+    ordersMade = []
+    ordersFoundByDealer = dealerFound.orders
+    if ordersFoundByDealer != None:
+        for order in ordersFoundByDealer:
+            if (order.customer_id == customer_id):
+                ordersMade.append({
+                    "id": order.id,
+                    "price": order.price
+                })
+    json_arr = []
+    for order in ordersMade:
+        orderInJson = json.loads(str(order).replace("\'", "\""))
+        json_arr.append(orderInJson)
+    return jsonify(json_arr)
+
+#Add a new order
+@app.route('/makeOrder', methods = ['POST'])
+def makeOrder():
+    if not request.json:
+        abort(404)
+    dealer_id = request.json['dealer_id']
+    customer_id = request.json['customer_id']
+    price = request.json['price']
+    customerFound = Customer.query.filter(Customer.id == customer_id)
+    if customerFound == None:
+        abort(404)
+    dealerFound = Dealer.query.filter(Dealer.id == dealer_id)
+    if dealerFound == None:
+        abort(404)
+    newOrder = Order(customer_id = customer_id, dealer_id = dealer_id, price = price)
+    db.session.add(newOrder)
     db.session.commit()
+    return jsonify({
+        "customer": customerFound.first().name,
+        "Dealer": dealerFound.first().name,
+        "Price": price
+    })
 
 # Get feedback for a particular dealer and customer
 @app.route('/getFeedback', methods=['GET'])
 def getFeedback():
     if not request.json:
         abort(404)
-    dealer = request.json['dealer']
-    customer_name = request.json['customer'] 
-    feedbackList = Customer.query.filter(Customer.name == customer_name).first().feedbacks
-    DealerID = Dealer.query.filter(Dealer.name == dealer).first().id
-    if (DealerID == None or feedbackList == None):
+    dealer_id = request.json['dealer_id']
+    customer_id = request.json['customer_id'] 
+    customerFound = Customer.query.filter(Customer.id == customer_id)
+    if (customerFound == None):
         abort(404)
-    for feedback in feedbackList:
-        if (feedback.dealer_id == DealerID):
-            return jsonify({
-                "customer": customer_name,
-                "dealer": dealer,
-                "comments": feedback.comments
-            })
-    
+    customerFound = customerFound.first()
+    dealerFound = Dealer.query.filter(Dealer.id == dealer_id)
+    if (dealerFound == None):
+        abort(404)
+    dealerFound = dealerFound.first()
+    feedbacksFound = customerFound.feedbacks
+    if (feedbacksFound == None):
+        abort(404)
+    if (dealerFound == None):
+        abort(404)
+    feedbacksMade = []
+    json_arr = []
+    for feedback in feedbacksFound:
+        if (feedback.dealer_id == dealerFound.id):
+            feedbacksMade.append({
+                "order": feedback.order_id, 
+                "comments": feedback.comments 
+                })
+    for feedback in feedbacksMade:
+        feedbackInJson = json.loads(str(feedback).replace("\'", "\""))
+        json_arr.append(feedbackInJson)
+    return jsonify(json_arr)
+    abort(404) 
 
 @app.route('/getDealerByID', methods=['GET'])
 def getDealerbyID():
@@ -82,6 +149,7 @@ def addDealer():
     db.session.add(newDealer)
     db.session.commit()
     return jsonify({
+        "id": newDealer.id,
         "name":nameofDealer,
         "country":country
     })
@@ -109,26 +177,32 @@ def submitFeedback():
     if not request.json:
         abort(404)
     if request.method == 'POST':
-        customer_name = request.json['customer']
-        dealerName = request.json['dealer']
+        customer_id = request.json['customer_id']
+        dealer_id = request.json['dealer_id']
+        order_id = request.json['order_id']
         rating = request.json['rating']
         comments = request.json['comments']
-        if customer_name == '' or dealerName == '':
+        if db.session.query(Dealer).filter(Dealer.id == dealer_id).count() == 0:
             abort(404)
-        if db.session.query(Dealer).filter(Dealer.name == dealerName).count() == 0:
+        if db.session.query(Customer).filter(Customer.id == customer_id).count() == 0:
             abort(404)
-        if db.session.query(Customer).filter(Customer.name == customer_name).count() == 0:
+        if db.session.query(Order).filter(Order.id == order_id).count() == 0:
             abort(404)
-        customerFound = db.session.query(Customer).filter(Customer.name == customer_name).first()
-        reviewedDealer = db.session.query(Dealer).filter(Dealer.name == dealerName).first()
+        orderFound = db.session.query(Order).filter(Order.id == order_id).first()
+        customerFound = db.session.query(Customer).filter(Customer.id == customer_id).first()
+        reviewedDealer = db.session.query(Dealer).filter(Dealer.id == dealer_id).first()
         reviewedDealer.averageRating = ((reviewedDealer.averageRating * reviewedDealer.numofRatings) + rating) / (reviewedDealer.averageRating + 1)
         reviewedDealer.numofRatings += 1
-        data = Feedback(customer_name=customerFound.name, dealer_id = reviewedDealer.id , rating = rating, comments = comments, customer_id = customerFound.id)
+        data = Feedback(customer_name=customerFound.name, dealer_id = reviewedDealer.id , rating = rating, comments = comments, customer_id = customerFound.id, order_id = orderFound.id)
         db.session.add(data)
         db.session.commit()
         return jsonify({
-            "customer":customerFound.name,
-            "comments":comments 
+            "customer_name":customerFound.name,
+            "customer_id":customerFound.id,
+            "dealer_name": reviewedDealer.name,
+            "dealer_id": reviewedDealer.id,
+            "order_id": orderFound.id,
+            "comments":comments
         })
 
 @app.route('/addCustomer', methods=['POST'])
@@ -140,8 +214,13 @@ def addCustomer():
     db.session.add(newCustomer)
     db.session.commit()
     return jsonify({
-        "name":nameofCustomer
+        "id": newCustomer.id,
+        "name": newCustomer.name
     })
+
+def create_db():
+    db.create_all()
+    db.session.commit()
 
 create_db()
 app.run(
@@ -168,15 +247,21 @@ port=5000)
     }
     /submitFeedback: [POST]
     {
-        "customer": "Customer1",
-        "dealer": "Dealer1",
+        "customer_id": 1,
+        "dealer_id": 1,
         "rating": 10,
+        "order_id": 1,
         "comments": "Great dealer!"
     }
-
     /getFeedback: [GET]
     {
-        "customer": "Customer1",
-        "dealer": "Dealer1"
+        "customer_id":1,
+        "dealer_id":1
+    }
+    /maekOrder: [POST]
+    {
+        "customer_id": 1,
+        "dealer_id": 1,
+        "price": 30
     }
 '''
