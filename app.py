@@ -217,6 +217,108 @@ def addCustomer():
         "id": newCustomer.id,
         "name": newCustomer.name
     })
+#Get all customers for a particular dealer
+@app.route('/getCustomers', methods = ['GET'])
+def getCustomers():
+    if not request.json:
+        abort(404)
+    dealer_id = request.json['dealer_id']
+    dealerFound = Dealer.query.filter(Dealer.id == dealer_id).first()
+    if (dealerFound == None):
+        abort(404)
+    customersSet = []
+    customersString = []
+    ordersFoundByDealer = dealerFound.orders
+    if ordersFoundByDealer != None:
+        for order in ordersFoundByDealer:
+            if not order.customer_id in customersSet:
+                customersString.append({
+                    "customer_id": order.customer_id,
+                    "customer_name": Customer.query.filter(Customer.id == order.customer_id).first().name,
+                })
+                customersSet.append(order.customer_id)
+    json_arr = []
+    for customer in customersString:
+        customerInJson = json.loads(str(customer).replace("\'", "\""))
+        json_arr.append(customerInJson)
+    return jsonify(json_arr)
+
+#Get all feedbacks for a particular dealer
+@app.route('/getFeedbacksForDealer', methods = ['GET'])
+def getFeedbacksForDealer():
+    if not request.json:
+        abort(404)
+    dealer_id = request.json['dealer_id']
+    dealerFound = Dealer.query.filter(Dealer.id == dealer_id).first()
+    if (dealerFound == None):
+        abort(404)
+    feedbacksFound =  dealerFound.feedbacks
+    feedbacksString = []
+    if feedbacksFound != None:
+        for feedback in feedbacksFound:
+            feedbacksString.append({
+                "customer_id": feedback.customer_id,
+                "dealer_id": feedback.dealer_id,
+                "Comments": feedback.comments,
+            })
+    json_arr = []
+    for feedback in feedbacksString:
+        feedbackInJson = json.loads(str(feedback).replace("\'", "\""))
+        json_arr.append(feedbackInJson)
+    return jsonify(json_arr)
+
+#Get all dealers for a particular customer
+@app.route('/getDealers', methods = ['GET'])
+def getDealers():
+    if not request.json:
+        abort(404)
+    customer_id = request.json['customer_id']
+    customerFound = Customer.query.filter(Customer.id == customer_id).first()
+    if (customerFound == None):
+        abort(404)
+    dealersSet = []
+    dealersString = []
+    ordersFoundByCustomer = customerFound.orders
+    if ordersFoundByCustomer != None:
+        for order in ordersFoundByCustomer:
+            if not order.dealer_id in dealersSet:
+                dealersString.append({
+                    "dealer_id": order.dealer_id,
+                    "dealer_name": Dealer.query.filter(Dealer.id == order.dealer_id).first().name,
+                })
+                dealersSet.append(order.dealer_id)
+    json_arr = []
+    for dealer in dealersString:
+        dealerInJson = json.loads(str(dealer).replace("\'", "\""))
+        json_arr.append(dealerInJson)
+    return jsonify(json_arr)
+
+#Get all feedbacks for a particular customer
+@app.route('/getFeedbacksForCustomer', methods = ['GET'])
+def getFeedbacksForCustomer():
+    if not request.json:
+        abort(404)
+    customer_id = request.json['customer_id']
+    customerFound = Customer.query.filter(Customer.id == customer_id).first()
+    if (customerFound == None):
+        abort(404)
+    feedbacksFound =  customerFound.feedbacks
+    feedbacksString = []
+    if feedbacksFound != None:
+        for feedback in feedbacksFound:
+            feedbacksString.append({
+                "customer_id": feedback.customer_id,
+                "dealer_id": feedback.dealer_id,
+                "Comments": feedback.comments,
+            })
+    json_arr = []
+    for feedback in feedbacksString:
+        feedbackInJson = json.loads(str(feedback).replace("\'", "\""))
+        json_arr.append(feedbackInJson)
+    return jsonify(json_arr)
+
+
+
 
 def create_db():
     db.create_all()
