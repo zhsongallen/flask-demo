@@ -1,4 +1,7 @@
 import graphene
+from flask import json, jsonify, request
+import requests
+from collections import namedtuple
 from graphene import relay
 from graphene_sqlalchemy import SQLAlchemyObjectType, SQLAlchemyConnectionField
 from models import db_session, Order as OrderModel, Feedback as FeedbackModel, Customer as CustomerModel, Dealer as DealerModel
@@ -25,6 +28,11 @@ class Dealer(SQLAlchemyObjectType):
         model = DealerModel
         interfaces = (relay.Node, )
 
+def _json_object_hook(d):
+    return namedtuple('X', d.keys())(*d.values())
+
+def json2obj(data):
+    return json.loads(data, object_hook=_json_object_hook)
 
 class Query(graphene.ObjectType):
     node = relay.Node.Field()
@@ -45,11 +53,10 @@ class Query(graphene.ObjectType):
     all_orders = SQLAlchemyConnectionField(Order.connection)
     all_feedbacks = SQLAlchemyConnectionField(Feedback.connection)
 
-    #/getCustomerByName
-    customers = graphene.List(Customer, name=graphene.String())
-    def resolve_customers(self, info, **args):
-        query = Customer.get_query(info)
-        print(args.get("name"))
-        return query.filter(CustomerModel.name == args.get('name'))
+    #/getDealerByName
+    dealer = graphene.List(Dealer, name=graphene.String())
+    def resolve_dealer(self, info, **args):
+        result = requests.get("http://127.0.0.1:5000/getDealerByName/" + args.get('name')).json()
+        return result
         
 schema = graphene.Schema(query=Query)
