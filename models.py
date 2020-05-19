@@ -4,7 +4,7 @@ from sqlalchemy.orm import (scoped_session, sessionmaker, relationship,
                             backref)
 from sqlalchemy.ext.declarative import declarative_base
 
-engine = create_engine('postgresql://postgres:test123@localhost/lexus', convert_unicode=True)
+engine = create_engine('postgresql://postgres:test123@db:5432/lexus', convert_unicode=True)
 db_session = scoped_session(sessionmaker(autocommit=False,
                                          autoflush=False,
                                          bind=engine))
@@ -47,4 +47,4 @@ class Customer(Base):
     feedbacks = relationship('Feedback', backref = 'customer', lazy = True)
     orders = relationship('Order', backref = 'customer', lazy = True)
 
-
+Base.metadata.create_all(bind=engine)
