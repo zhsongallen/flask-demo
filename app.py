@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask, render_template, request, redirect, jsonify, abort, json
 
@@ -157,6 +158,34 @@ def getDealerbyID():
     if not request.json:
         abort(404)
     result = db.session.query(Dealer).filter(Dealer.id == request.json['id']).first()
+=======
+from flask import Flask, abort, request, jsonify
+from flask_graphql import GraphQLView
+from models import Order as OrderModel, Feedback as FeedbackModel, Customer as CustomerModel, Dealer as DealerModel
+
+from models import db_session
+from schema import schema, Feedback, Customer, Order, Dealer
+
+app = Flask(__name__)
+app.debug = True
+
+app.add_url_rule(
+    '/graphql',
+    view_func=GraphQLView.as_view(
+        'graphql',
+        schema=schema,
+        graphiql=True
+    )
+)
+
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db_session.remove()
+
+@app.route('/getDealerByName/<name>', methods=['GET'])
+def getDealerbyName(name):
+    result = db_session.query(DealerModel).filter(DealerModel.name == name).first()
+>>>>>>> graphQLVersion
     if (result == None):
         abort(404)
     return jsonify({
@@ -166,6 +195,7 @@ def getDealerbyID():
             'avergeRating': result.averageRating
     })
 
+<<<<<<< HEAD
 @app.route('/addDealer', methods=['POST'])
 def addDealer():
     if not request.json or (not "name" in request.json) or (not "country" in request.json):
@@ -292,3 +322,9 @@ port=5000)
         "price": 30
     }
 '''
+=======
+
+
+if __name__ == '__main__':
+    app.run()
+>>>>>>> graphQLVersion
