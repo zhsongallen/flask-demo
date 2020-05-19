@@ -1,4 +1,5 @@
 from sqlalchemy import *
+from sqlalchemy import select
 from sqlalchemy.orm import (scoped_session, sessionmaker, relationship,
                             backref)
 from sqlalchemy.ext.declarative import declarative_base
