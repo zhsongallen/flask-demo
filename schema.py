@@ -1,6 +1,7 @@
 import graphene
 from flask import json, jsonify, request
-from sqlalchemy import select
+import sqlalchemy
+from sqlalchemy.sql import select
 from collections import namedtuple
 from graphene import relay
 from graphene_sqlalchemy import SQLAlchemyObjectType, SQLAlchemyConnectionField
@@ -77,15 +78,8 @@ class Query(graphene.ObjectType):
     #/getCustomers, get all customers for a particular dealer
     get_customers = graphene.List(Customer, dealer_id=graphene.Int())
     def resolve_get_customers(self, info, **args):
-        query = Order.get_query(info)
-        query = query.join(CustomerModel)
-        query = query.join(DealerModel)
-        query = query.filter(DealerModel.id == args.get('dealer_id'))
-        ordersFoundByDealer = query.all()
-        customerList = []
-        if (ordersFoundByDealer != None):
-            for order in ordersFoundByDealer:
-                customerList.append(order.customer_id)
+        customersFound = db_session.query(OrderModel.customer_id).filter(DealerModel.id == args.get('dealer_id'))
+        customerList = customersFound.all()
         return Customer.get_query(info).filter(CustomerModel.id.in_(customerList))
 
     
